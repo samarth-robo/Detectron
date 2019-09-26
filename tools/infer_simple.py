@@ -32,6 +32,7 @@ import logging
 import os
 import sys
 import time
+import numpy as np
 
 from caffe2.python import workspace
 
@@ -53,7 +54,7 @@ c2_utils.import_detectron_ops()
 cv2.ocl.setUseOpenCL(False)
 
 
-def parse_args():
+def parse_args(myargv=None):
     parser = argparse.ArgumentParser(description='End-to-end inference')
     parser.add_argument(
         '--cfg',
@@ -111,12 +112,14 @@ def parse_args():
         type=float
     )
     parser.add_argument(
-        'im_or_folder', help='image or folder of images', default=None
+        '--im_or_folder', help='image or folder of images', default=None
     )
-    if len(sys.argv) == 1:
-        parser.print_help()
-        sys.exit(1)
-    return parser.parse_args()
+    if myargv is None:
+        myargv = sys.argv[1:]
+    # if len(sys.argv) == 1:
+    #     parser.print_help()
+    #     sys.exit(1)
+    return parser.parse_args(args=myargv)
 
 
 def main(args):
@@ -178,8 +181,60 @@ def main(args):
         )
 
 
-if __name__ == '__main__':
-    workspace.GlobalInit(['caffe2', '--caffe2_log_level=0'])
+class HumanKPDetector:
+  def __init__(self, myargv=None,
+    model_config_filename=os.path.expanduser('~/libraries/detectron/configs/12_2017_baselines/e2e_keypoint_rcnn_X-101-32x8d-FPN_s1x.yaml'),
+    model_weights_filename=os.path.expanduser('~/libraries/detectron/detectron-download-cache/37732318/12_2017_baselines/e2e_keypoint_rcnn_X-101-32x8d-FPN_s1x.yaml.16_55_09.Lx8H5JVu/output/train/keypoints_coco_2014_train%3Akeypoints_coco_2014_valminusminival/generalized_rcnn/model_final.pkl')):
+    workspace.GlobalInit(['caffe2'])
     setup_logging(__name__)
-    args = parse_args()
-    main(args)
+    args = parse_args(myargv)
+    args.cfg = model_config_filename
+    args.weights = model_weights_filename
+    self.logger = logging.getLogger(__name__)
+
+    merge_cfg_from_file(args.cfg)
+    cfg.NUM_GPUS = 1
+    assert_and_infer_cfg(cache_urls=False)
+
+    assert not cfg.MODEL.RPN_ONLY, \
+        'RPN models are not supported'
+    assert not cfg.TEST.PRECOMPUTED_PROPOSALS, \
+        'Models that require precomputed proposals are not supported'
+
+    self.model = infer_engine.initialize_model_from_cfg(args.weights)
+    self.dummy_coco_dataset = dummy_datasets.get_coco_dataset()
+
+  def detect(self, im):
+    timers = defaultdict(Timer)
+    t = time.time()
+    with c2_utils.NamedCudaScope(0):
+        cls_boxes, cls_segms, cls_keyps = infer_engine.im_detect_all(
+            self.model, im, None, timers=timers
+        )
+    self.logger.info('Inference time: {:.3f}s'.format(time.time() - t))
+    for k, v in timers.items():
+        self.logger.info(' | {}: {:.3f}s'.format(k, v.average_time))
+    im_show = vis_utils.vis_one_image_opencv(im, cls_boxes, cls_segms, cls_keyps,
+        dataset=self.dummy_coco_dataset)
+    boxes, segms, keypoints, classes = vis_utils.convert_from_cls_format(
+        cls_boxes, cls_segms, cls_keyps)
+    ids = [i for i,c in enumerate(classes) if c == 1]
+    valid = len(ids) > 0
+    kps = -np.ones((3, 17))
+    if valid:
+        scores = boxes[ids, -1]
+        kps = keypoints[ids[np.argmax(scores)]][:3]
+    return valid, kps, im_show
+
+
+if __name__ == '__main__':
+    # workspace.GlobalInit(['caffe2', '--caffe2_log_level=0'])
+    # setup_logging(__name__)
+    # args = parse_args()
+    # main(args)
+    im = cv2.imread('/home/samarth/test_image.png')
+    hkp = HumanKPDetector()
+    _, _, im_show = hkp.detect(im)
+    import cv2
+    cv2.imshow('detectron output', im_show)
+    cv2.waitKey(0)
