@@ -232,7 +232,7 @@ if __name__ == '__main__':
     # setup_logging(__name__)
     # args = parse_args()
     # main(args)
-    im = cv2.imread('/home/samarth/test_image.png')
+    im = cv2.imread('../demo/15673749081_767a7fa63a_k.jpg')
     hkp = HumanKPDetector()
     _, _, im_show = hkp.detect(im)
     import cv2
