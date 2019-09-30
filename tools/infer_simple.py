@@ -242,6 +242,6 @@ if __name__ == '__main__':
     im = cv2.imread('../demo/15673749081_767a7fa63a_k.jpg')
     hkp = HumanKPDetector()
     _, _, im_show = hkp.detect(im)
-    import cv2
-    cv2.imshow('detectron output', im_show)
-    cv2.waitKey(0)
+    # import cv2
+    # cv2.imshow('detectron output', im_show)
+    # cv2.waitKey(0)
