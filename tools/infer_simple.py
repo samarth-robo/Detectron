@@ -182,18 +182,25 @@ def main(args):
 
 
 class HumanKPDetector:
-  def __init__(self, myargv=None,
-    model_config_filename=os.path.expanduser('~/libraries/detectron/configs/12_2017_baselines/e2e_keypoint_rcnn_X-101-32x8d-FPN_s1x.yaml'),
-    model_weights_filename=os.path.expanduser('~/libraries/detectron/detectron-download-cache/37732318/12_2017_baselines/e2e_keypoint_rcnn_X-101-32x8d-FPN_s1x.yaml.16_55_09.Lx8H5JVu/output/train/keypoints_coco_2014_train%3Akeypoints_coco_2014_valminusminival/generalized_rcnn/model_final.pkl')):
+  def __init__(self, myargv=None, detectron_dir=os.path.expanduser(os.path.join('~', 'libraries', 'detectron'))):
     workspace.GlobalInit(['caffe2'])
     setup_logging(__name__)
-    args = parse_args(myargv)
-    args.cfg = model_config_filename
-    args.weights = model_weights_filename
     self.logger = logging.getLogger(__name__)
-
+    args = parse_args(myargv)
+    
+    # config
+    # model_config_filename=os.path.join(detectron_dir, 'configs/12_2017_baselines/e2e_keypoint_rcnn_X-101-32x8d-FPN_s1x.yaml')
+    model_config_filename=os.path.join(detectron_dir, 'configs/12_2017_baselines/e2e_keypoint_rcnn_R-50-FPN_s1x.yaml')
+    args.cfg = model_config_filename
     merge_cfg_from_file(args.cfg)
     cfg.NUM_GPUS = 1
+
+    # weights
+    # model_weights = 'https://dl.fbaipublicfiles.com/detectron/37732318/12_2017_baselines/e2e_keypoint_rcnn_X-101-32x8d-FPN_s1x.yaml.16_55_09.Lx8H5JVu/output/train/keypoints_coco_2014_train%3Akeypoints_coco_2014_valminusminival/generalized_rcnn/model_final.pkl'
+    model_weights = 'https://dl.fbaipublicfiles.com/detectron/37697714/12_2017_baselines/e2e_keypoint_rcnn_R-50-FPN_s1x.yaml.08_44_03.qrQ0ph6M/output/train/keypoints_coco_2014_train%3Akeypoints_coco_2014_valminusminival/generalized_rcnn/model_final.pkl'
+    cfg.DOWNLOAD_CACHE = os.path.join(detectron_dir, 'detectron-download-cache')
+    args.weights = cache_url(model_weights, cfg.DOWNLOAD_CACHE)
+
     assert_and_infer_cfg(cache_urls=False)
 
     assert not cfg.MODEL.RPN_ONLY, \
@@ -232,7 +239,7 @@ if __name__ == '__main__':
     # setup_logging(__name__)
     # args = parse_args()
     # main(args)
-    im = cv2.imread('/home/samarth/test_image.png')
+    im = cv2.imread('../demo/15673749081_767a7fa63a_k.jpg')
     hkp = HumanKPDetector()
     _, _, im_show = hkp.detect(im)
     import cv2
